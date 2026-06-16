@@ -27,7 +27,6 @@ var (
 	eventScroll      *tui.Element // PERSISTENT — created once, reused across renders
 	eventList        *tui.Element // persistent list inside eventScroll
 	lastWidth        int          // track terminal width for TextArea recreation
-	needsScroll      bool         // set when new events arrive
 	unseenEvents     int          // events that arrived while user was scrolled up
 	atBottomOnLastCheck bool = true // was user at bottom on last check? starts true
 	bgStyle          = tui.NewStyle().Background(tui.ANSIColor(236))
@@ -112,7 +111,6 @@ func submitInput(text string) {
 	if cmd == "/settings" {
 		eventLogMu.Lock()
 		eventLog = append(eventLog, "/settings (settings mode not implemented)")
-		needsScroll = true
 		eventLogMu.Unlock()
 		inputState.Set("")
 		return
@@ -128,7 +126,6 @@ func submitInput(text string) {
 
 	eventLogMu.Lock()
 	eventLog = append(eventLog, cmd)
-	needsScroll = true
 	eventLogMu.Unlock()
 	inputState.Set("")
 	cmdActive = false
@@ -166,13 +163,10 @@ var testMessages = []string{
 func testScrollGenerator() {
 	for i := 0; i < len(testMessages); i++ {
 		time.Sleep(1 * time.Second)
-		msg := testMessages[i]
-
-		eventLogMu.Lock()
-		eventLog = append(eventLog, msg)
-		eventLogMu.Unlock()
-
-		app.MarkDirty()
+		idx := i
+		app.QueueUpdate(func() {
+			submitInput(testMessages[idx])
+		})
 	}
 }
 
@@ -275,6 +269,7 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 			
 		)
 		eventScroll.AddChild(eventList)
+		eventScroll.AddChild(tui.New(tui.WithHeight(1)))
 	}
 
 	// ── Compute fuzzy matches ──
@@ -321,17 +316,20 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 		eventList.AddChild(frame)
 	}
 
-	// Flag for PostRenderHook to handle autoscroll (after layout, maxY is correct)
-	if len(toAdd) > 0 || unseenEvents > 0 {
-		needsScroll = true
-	}
-	if !atBottomOnLastCheck && len(toAdd) > 0 {
-		unseenEvents += len(toAdd)
+	// Auto-scroll using stale maxY with generous tolerance (10).
+	if len(toAdd) > 0 {
+		_, curY := eventScroll.ScrollOffset()
+		_, maxY := eventScroll.MaxScroll()
+		if curY >= maxY-10 {
+			eventScroll.ScrollToBottom()
+		} else {
+			unseenEvents += len(toAdd)
+		}
 	}
 	eventLogMu.Unlock()
 
 	leftCol.AddChild(eventScroll)
-	leftCol.AddChild(tui.New(tui.WithText("  > test notification bar"), tui.WithHeight(1)))
+	
 	content.AddChild(leftCol)
 
 	sidebar := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column), tui.WithWidth(16), tui.WithBorder(tui.BorderRounded))
@@ -577,14 +575,12 @@ func main() {
 			if postRenderCursor != nil {
 				postRenderCursor()
 			}
-			// Post-render = layout is done, maxY is correct
-			if eventScroll != nil && needsScroll {
+			// Post-render: layout is done, maxY is correct.
+			if eventScroll != nil {
 				_, curY := eventScroll.ScrollOffset()
 				_, maxY := eventScroll.MaxScroll()
-				atBottom := curY >= maxY-2
-				atBottomOnLastCheck = atBottom
-				if atBottom {
-					needsScroll = false
+				atBottomOnLastCheck = curY >= maxY-3
+				if atBottomOnLastCheck && unseenEvents > 0 {
 					eventScroll.ScrollToBottom()
 					unseenEvents = 0
 				}
