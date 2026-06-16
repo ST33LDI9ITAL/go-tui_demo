@@ -1,0 +1,9 @@
+# Binary
+tui-test
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
