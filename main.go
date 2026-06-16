@@ -158,15 +158,82 @@ var testMessages = []string{
 	"Very short ✔️",
 	"Line 1 — start\nLine 2 — middle content here with some 💖\nLine 3 — end here with 👍\nLine 4 — extra trailing line for testing\nLine 5 — final line with 🏁",
 	"Flag test 🏁 with double-width emoji at various positions in this line to test wrapping ✨✨✨ at the end here too!",
+	"Another short line ✔️",
+	"Medium line ☕☕☕ with a bit more text for wrapping and scrolling test purposes here",
+	"Line 1 of three\nLine 2 of three\nLine 3 of three — multi paragraph test with ✨🌟",
+	"A longer single paragraph that should wrap around the frame nicely to test how autoscroll handles large multiline content blocks in the event area 🚀🎉💖",
+	"Final test message with 🌙✔️⭐☀️🌈🍕🚀🎉💖👍🏆🔥🎸🌟 at various positions throughout this very long line that wraps around the entire frame width for testing purposes",
+}
+
+
+func _wrapText(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+	var result []string
+	for _, paragraph := range strings.Split(text, "\n") {
+		words := strings.Fields(paragraph)
+		if len(words) == 0 {
+			result = append(result, "")
+			continue
+		}
+		line := words[0]
+		// If the first word itself exceeds maxWidth, grapheme-break it
+		if tui.StringWidth(line) > maxWidth {
+			_graphemeBreak(line, maxWidth, &result)
+			line = ""
+		}
+		for _, w := range words[1:] {
+			lw := tui.StringWidth(line + " " + w)
+			if lw > maxWidth {
+				if line != "" {
+					result = append(result, line)
+				}
+				if tui.StringWidth(w) > maxWidth {
+					_graphemeBreak(w, maxWidth, &result)
+					line = ""
+				} else {
+					line = w
+				}
+			} else {
+				line += " " + w
+			}
+		}
+		if line != "" {
+			result = append(result, line)
+		}
+	}
+	return result
+}
+
+func _graphemeBreak(text string, maxWidth int, result *[]string) {
+	var buf strings.Builder
+	curW := 0
+	g := runeseg.NewGraphemes(text)
+	for g.Next() {
+		w := g.Width()
+		if curW + w > maxWidth && curW > 0 {
+			*result = append(*result, buf.String())
+			buf.Reset()
+			curW = 0
+		}
+		buf.WriteString(g.Str())
+		curW += w
+	}
+	if buf.Len() > 0 {
+		*result = append(*result, buf.String())
+	}
 }
 
 func testScrollGenerator() {
 	for i := 0; i < len(testMessages); i++ {
-		time.Sleep(1 * time.Second)
-		idx := i
-		app.QueueUpdate(func() {
-			submitInput(testMessages[idx])
-		})
+		time.Sleep(500 * time.Millisecond)
+		msg := testMessages[i]
+		// Append directly and trigger render (same as manual submit)
+		eventLogMu.Lock()
+		eventLog = append(eventLog, msg)
+		eventLogMu.Unlock()
+		app.MarkDirty()
 	}
 }
 
@@ -269,7 +336,6 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 			
 		)
 		eventScroll.AddChild(eventList)
-		eventScroll.AddChild(tui.New(tui.WithHeight(1)))
 	}
 
 	// ── Compute fuzzy matches ──
@@ -306,21 +372,27 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	existing := len(eventList.Children())
 	toAdd := eventLog[existing:]
 	for _, entry := range toAdd {
+		// Wrap text manually so the layout knows the correct frame height
+		wrappedLines := _wrapText("  " + entry, frameInner-2)
+		inner := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column))
+		for _, line := range wrappedLines {
+			inner.AddChild(tui.New(tui.WithText(line)))
+		}
 		frame := tui.New(
 			tui.WithBorder(tui.BorderRounded),
 			tui.WithBorderTitle(" 💬 "),
 			tui.WithBackground(bgStyle),
 			tui.WithWidth(frameInner),
-			tui.WithText("  " + entry),
 		)
+		frame.AddChild(inner)
 		eventList.AddChild(frame)
 	}
 
-	// Auto-scroll using stale maxY with generous tolerance (10).
+	// Only autoscroll if user is at bottom (stale maxY = curY when at bottom)
 	if len(toAdd) > 0 {
 		_, curY := eventScroll.ScrollOffset()
 		_, maxY := eventScroll.MaxScroll()
-		if curY >= maxY-10 {
+		if curY >= maxY-3 {
 			eventScroll.ScrollToBottom()
 		} else {
 			unseenEvents += len(toAdd)
@@ -575,7 +647,8 @@ func main() {
 			if postRenderCursor != nil {
 				postRenderCursor()
 			}
-			// Post-render: layout is done, maxY is correct.
+			// Post-render: track atBottom with correct values.
+			// If user scrolled to bottom with unseen events, catch up.
 			if eventScroll != nil {
 				_, curY := eventScroll.ScrollOffset()
 				_, maxY := eventScroll.MaxScroll()
