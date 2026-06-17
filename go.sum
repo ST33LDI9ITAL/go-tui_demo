@@ -1,4 +1,2 @@
-github.com/scalecode-solutions/runeseg v1.0.4 h1:gl0GPi797+WYs3bXUXBuCHrcCX34zuhCzjo8ehk990I=
-github.com/scalecode-solutions/runeseg v1.0.4/go.mod h1:ukaeRAnf3adx0B0qjLbjsu9Wxwd+VexzPU0kAKl3lPY=
 golang.org/x/sys v0.40.0 h1:DBZZqJ2Rkml6QMQsZywtnjnnGvHza6BTfYFWY9kjEWQ=
 golang.org/x/sys v0.40.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=

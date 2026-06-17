@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"unicode/utf8"
 	"os"
 	"os/signal"
 	"reflect"
@@ -12,7 +13,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/scalecode-solutions/runeseg"
 	"github.com/grindlemire/go-tui"
 )
 
@@ -65,19 +65,18 @@ func insertNL() {
 		pos = 0
 	}
 	text := inputState.Get()
-	n := tui.GraphemeClusterCount(text)
+	n := _graphemeClusterCount(text)
 	if pos > n {
 		pos = n
 	}
 	// Build prefix and suffix using grapheme iteration
 	var prefix, suffix strings.Builder
 	gc := 0
-	g := runeseg.NewGraphemes(text)
-	for g.Next() {
+	for _, r := range text {
 		if gc < pos {
-			prefix.WriteString(g.Str())
+			prefix.WriteRune(r)
 		} else {
-			suffix.WriteString(g.Str())
+			suffix.WriteRune(r)
 		}
 		gc++
 	}
@@ -163,9 +162,31 @@ var testMessages = []string{
 	"Line 1 of three\nLine 2 of three\nLine 3 of three — multi paragraph test with ✨🌟",
 	"A longer single paragraph that should wrap around the frame nicely to test how autoscroll handles large multiline content blocks in the event area 🚀🎉💖",
 	"Final test message with 🌙✔️⭐☀️🌈🍕🚀🎉💖👍🏆🔥🎸🌟 at various positions throughout this very long line that wraps around the entire frame width for testing purposes",
+	"ZWJ sequence 👨‍👩‍👧‍👦 family emoji with zero-width joiner spanning multiple code points",
+	"Regional flag indicator 🇺🇸🇯🇵🇩🇪 with two regional letter symbols combining into flag",
+	"Keycap sequence #️⃣ 1️⃣ 9️⃣ 0️⃣ with combining enclosing keycap codepoints",
+	"Skin tone modifier 👍🏿 waving hand 🖐️👋🏾 with Fitzpatrick modifiers applied",
+	"VS15 text presentation ☺︎✆︎☎︎ with FE0E forcing text style on emoji-capable BMP chars",
 }
 
 
+
+// _stringWidth returns display width of a string using tui.RuneWidth per rune.
+// NOTE: inaccurate for multi-rune grapheme clusters (ZWJ, flags) — reports each
+// component rune width individually. This is a known gap in the go-tui API.
+func _stringWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		w += tui.RuneWidth(r)
+	}
+	return w
+}
+
+// _graphemeClusterCount counts code points in a string.
+// Like _stringWidth, this is per-rune, not per-cluster.
+func _graphemeClusterCount(s string) int {
+	return utf8.RuneCountInString(s)
+}
 func _wrapText(text string, maxWidth int) []string {
 	if maxWidth <= 0 {
 		return []string{text}
@@ -179,17 +200,17 @@ func _wrapText(text string, maxWidth int) []string {
 		}
 		line := words[0]
 		// If the first word itself exceeds maxWidth, grapheme-break it
-		if tui.StringWidth(line) > maxWidth {
+		if _stringWidth(line) > maxWidth {
 			_graphemeBreak(line, maxWidth, &result)
 			line = ""
 		}
 		for _, w := range words[1:] {
-			lw := tui.StringWidth(line + " " + w)
+			lw := _stringWidth(line + " " + w)
 			if lw > maxWidth {
 				if line != "" {
 					result = append(result, line)
 				}
-				if tui.StringWidth(w) > maxWidth {
+				if _stringWidth(w) > maxWidth {
 					_graphemeBreak(w, maxWidth, &result)
 					line = ""
 				} else {
@@ -209,15 +230,14 @@ func _wrapText(text string, maxWidth int) []string {
 func _graphemeBreak(text string, maxWidth int, result *[]string) {
 	var buf strings.Builder
 	curW := 0
-	g := runeseg.NewGraphemes(text)
-	for g.Next() {
-		w := g.Width()
+	for _, r := range text {
+		w := tui.RuneWidth(r)
 		if curW + w > maxWidth && curW > 0 {
 			*result = append(*result, buf.String())
 			buf.Reset()
 			curW = 0
 		}
-		buf.WriteString(g.Str())
+		buf.WriteRune(r)
 		curW += w
 	}
 	if buf.Len() > 0 {
@@ -476,13 +496,11 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 		text := inputState.Get()
 		row, col := 0, 0
 		gc := 0
-		g := runeseg.NewGraphemes(text)
-		for g.Next() {
+		for _, r := range text {
 			if gc >= cp {
 				break
 			}
-			cluster := g.Str()
-			if cluster == "\n" {
+			if r == '\n' {
 				row++
 				col = 0
 				gc++
@@ -492,7 +510,7 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 				row++
 				col = 0
 			}
-			col += g.Width()
+			col += tui.RuneWidth(r)
 			gc++
 		}
 		if col >= actualWidth {
