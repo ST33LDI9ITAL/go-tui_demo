@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"unicode/utf8"
 	"os"
 	"os/signal"
 	"reflect"
@@ -185,7 +184,7 @@ func _stringWidth(s string) int {
 // _graphemeClusterCount counts code points in a string.
 // Like _stringWidth, this is per-rune, not per-cluster.
 func _graphemeClusterCount(s string) int {
-	return utf8.RuneCountInString(s)
+	return len([]rune(s))
 }
 func _wrapText(text string, maxWidth int) []string {
 	if maxWidth <= 0 {
