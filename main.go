@@ -64,7 +64,7 @@ func insertNL() {
 		pos = 0
 	}
 	text := inputState.Get()
-	n := _graphemeClusterCount(text)
+	n := len([]rune(text))
 	if pos > n {
 		pos = n
 	}
@@ -170,79 +170,8 @@ var testMessages = []string{
 
 
 
-// _stringWidth returns display width of a string using tui.RuneWidth per rune.
-// NOTE: inaccurate for multi-rune grapheme clusters (ZWJ, flags) — reports each
-// component rune width individually. This is a known gap in the go-tui API.
-func _stringWidth(s string) int {
-	w := 0
-	for _, r := range s {
-		w += tui.RuneWidth(r)
-	}
-	return w
-}
 
-// _graphemeClusterCount counts code points in a string.
-// Like _stringWidth, this is per-rune, not per-cluster.
-func _graphemeClusterCount(s string) int {
-	return len([]rune(s))
-}
-func _wrapText(text string, maxWidth int) []string {
-	if maxWidth <= 0 {
-		return []string{text}
-	}
-	var result []string
-	for _, paragraph := range strings.Split(text, "\n") {
-		words := strings.Fields(paragraph)
-		if len(words) == 0 {
-			result = append(result, "")
-			continue
-		}
-		line := words[0]
-		// If the first word itself exceeds maxWidth, grapheme-break it
-		if _stringWidth(line) > maxWidth {
-			_graphemeBreak(line, maxWidth, &result)
-			line = ""
-		}
-		for _, w := range words[1:] {
-			lw := _stringWidth(line + " " + w)
-			if lw > maxWidth {
-				if line != "" {
-					result = append(result, line)
-				}
-				if _stringWidth(w) > maxWidth {
-					_graphemeBreak(w, maxWidth, &result)
-					line = ""
-				} else {
-					line = w
-				}
-			} else {
-				line += " " + w
-			}
-		}
-		if line != "" {
-			result = append(result, line)
-		}
-	}
-	return result
-}
 
-func _graphemeBreak(text string, maxWidth int, result *[]string) {
-	var buf strings.Builder
-	curW := 0
-	for _, r := range text {
-		w := tui.RuneWidth(r)
-		if curW + w > maxWidth && curW > 0 {
-			*result = append(*result, buf.String())
-			buf.Reset()
-			curW = 0
-		}
-		buf.WriteRune(r)
-		curW += w
-	}
-	if buf.Len() > 0 {
-		*result = append(*result, buf.String())
-	}
-}
 
 func testScrollGenerator() {
 	for i := 0; i < len(testMessages); i++ {
@@ -391,19 +320,14 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	existing := len(eventList.Children())
 	toAdd := eventLog[existing:]
 	for _, entry := range toAdd {
-		// Wrap text manually so the layout knows the correct frame height
-		wrappedLines := _wrapText("  " + entry, frameInner-2)
-		inner := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column))
-		for _, line := range wrappedLines {
-			inner.AddChild(tui.New(tui.WithText(line)))
-		}
+		// Use native go-tui wrapping — HeightForWidth accounts for wrapped lines
 		frame := tui.New(
 			tui.WithBorder(tui.BorderRounded),
 			tui.WithBorderTitle(" 💬 "),
 			tui.WithBackground(bgStyle),
 			tui.WithWidth(frameInner),
+			tui.WithText("  " + entry),
 		)
-		frame.AddChild(inner)
 		eventList.AddChild(frame)
 	}
 
