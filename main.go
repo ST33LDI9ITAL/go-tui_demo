@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -84,8 +82,10 @@ func insertNL() {
 }
 
 func quit() {
-	cleanup()
-	os.Exit(0)
+	// go-tui handles SIGINT internally — just trigger graceful stop
+	if app != nil {
+		app.Stop()
+	}
 }
 
 func submitInput(text string) {
@@ -552,12 +552,7 @@ func (c *testComponent) Watchers() []tui.Watcher {
 }
 
 func cleanup() {
-	os.Stdout.WriteString("\033[?1006l")
-	os.Stdout.WriteString("\033[?1000l")
-	os.Stdout.WriteString("\033[?2004l")
-	os.Stdout.WriteString("\033[?25h")
-	os.Stdout.WriteString("\033[0m")
-	os.Stdout.WriteString("\033[?1049l")
+	// app.Close() restores terminal, exits alt screen, shows cursor
 	if app != nil {
 		func() { defer func() { recover() }(); app.Close() }()
 	}
@@ -570,14 +565,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "panic: %v\n", r)
 			os.Exit(1)
 		}
-	}()
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sig
-		cleanup()
-		os.Exit(0)
 	}()
 
 	var err error
