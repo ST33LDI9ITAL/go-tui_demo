@@ -247,7 +247,7 @@ func subsequenceScore(query, target string) (int, bool) {
 
 func (c *testComponent) Render(a *tui.App) *tui.Element {
 	testChar := "✔"
-	title := fmt.Sprintf(" 🐷 > 📁 sloppygo > 🌿 feat/tui-event-panel (%s)", testChar)
+	title := fmt.Sprintf(" 🐷 > 📁 sloppygo > 🌿 feat/tui-event-panel (%s) ", testChar)
 
 	root := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column))
 	content := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Row), tui.WithFlexGrow(1))
@@ -393,7 +393,7 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	}
 
 	// ── Input frame ──
-	frame := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column), tui.WithBorder(tui.BorderRounded), tui.WithBorderTitle(title))
+	frame := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column), tui.WithBorder(tui.BorderRounded), tui.WithBorderTitle(title), tui.WithBorderTitleAlign(tui.TextAlignLeft))
 	el := textArea.Render(a)
 	textAreaEl = el
 	frame.AddChild(el)
