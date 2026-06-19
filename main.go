@@ -27,7 +27,6 @@ var (
 	unseenEvents     int          // events that arrived while user was scrolled up
 	atBottomOnLastCheck bool = true // was user at bottom on last check? starts true
 	bgStyle          = tui.NewStyle().Background(tui.ANSIColor(236))
-	frameInner       int
 
 	// ── Command/tag fuzzy matching ──
 	allCommands  = []string{"/help", "/start", "/stop", "/quit", "/command", "/context", "/cracker", "/settings", "/test-scroll"}
@@ -255,7 +254,6 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	content := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Row), tui.WithFlexGrow(1))
 
 	w, _ := a.Size()
-	frameInner = w - 20
 
 	// Recreate TextArea when terminal width changes
 	if textArea == nil || w != lastWidth {
@@ -322,12 +320,10 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	existing := len(eventList.Children())
 	toAdd := eventLog[existing:]
 	for _, entry := range toAdd {
-		// Use native go-tui wrapping — HeightForWidth accounts for wrapped lines
 		frame := tui.New(
 			tui.WithBorder(tui.BorderRounded),
 			tui.WithBorderTitle(" 💬 "),
 			tui.WithBackground(bgStyle),
-			tui.WithWidth(frameInner),
 			tui.WithText("  " + entry),
 		)
 		eventList.AddChild(frame)
