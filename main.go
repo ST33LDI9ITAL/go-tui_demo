@@ -42,13 +42,7 @@ var (
 
 type testComponent struct{}
 
-func elementAbsPos(el *tui.Element) (int, int) {
-	f := reflect.ValueOf(el).Elem().FieldByName("layout")
-	if !f.IsValid() {
-		return 0, 0
-	}
-	return int(f.FieldByName("AbsoluteX").Float()), int(f.FieldByName("AbsoluteY").Float())
-}
+
 
 func insertNL() {
 	rv := reflect.ValueOf(textArea).Elem().FieldByName("cursorPos")
@@ -369,9 +363,9 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 		if mh > 8 {
 			mh = 8
 		}
-		rv := reflect.ValueOf(matches).Elem().FieldByName("style")
-		sp := (*tui.LayoutStyle)(unsafe.Pointer(rv.UnsafeAddr()))
-		sp.Height = tui.Fixed(mh + 2) // content + border
+		st := matches.Style()
+		st.Height = tui.Fixed(mh + 2) // content + border
+		matches.SetStyle(st)
 
 		matches.RemoveAllChildren()
 		for i, cmd := range filteredCmds {
@@ -443,7 +437,7 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 		}
 		col = currentCol
 
-		ax, ay := elementAbsPos(textAreaEl)
+		ax, ay := textAreaEl.Rect().X, textAreaEl.Rect().Y
 		if sof := reflect.ValueOf(textArea).Elem().FieldByName("tempScrollOffset"); sof.IsValid() {
 			row -= int(sof.Int())
 			if row < 0 {
