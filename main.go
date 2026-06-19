@@ -66,18 +66,20 @@ func insertNL() {
 	if pos > n {
 		pos = n
 	}
-	// Build prefix and suffix using grapheme iteration
+	// Build prefix and suffix using rune iteration
 	var prefix, suffix strings.Builder
-	gc := 0
+	ri := 0
 	for _, r := range text {
-		if gc < pos {
+		if ri < pos {
 			prefix.WriteRune(r)
 		} else {
 			suffix.WriteRune(r)
 		}
-		gc++
+		ri++
 	}
 	inputState.Set(prefix.String() + "\n" + suffix.String())
+	// Advance cursor past the newline in cluster-aware fashion
+	// (the newline is its own 1-column cluster)
 	cs.Set(pos + 1)
 }
 
@@ -393,7 +395,7 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	}
 
 	// ── Input frame ──
-	frame := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column), tui.WithBorder(tui.BorderRounded), tui.WithBorderTitle(title), tui.WithBorderTitleAlign(tui.TextAlignLeft))
+	frame := tui.New(tui.WithDisplay(tui.DisplayFlex), tui.WithDirection(tui.Column), tui.WithBorder(tui.BorderRounded), tui.WithBorderTitle(title))
 	el := textArea.Render(a)
 	textAreaEl = el
 	frame.AddChild(el)
@@ -418,23 +420,28 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 
 		text := inputState.Get()
 		row, col := 0, 0
-		gc := 0
-		for _, r := range text {
-			if gc >= cp {
+		runePos := 0
+		rest := text
+		for len(rest) > 0 && runePos < cp {
+			cluster, cw, size, rc := tui.NextClusterRunes(rest)
+			if size == 0 {
 				break
 			}
-			if r == '\n' {
+
+			if cluster == "\n" {
 				row++
 				col = 0
-				gc++
+				runePos += rc
+				rest = rest[size:]
 				continue
 			}
 			if col >= actualWidth {
 				row++
 				col = 0
 			}
-			col += tui.RuneWidth(r)
-			gc++
+			col += cw
+			runePos += rc
+			rest = rest[size:]
 		}
 		if col >= actualWidth {
 			row++
