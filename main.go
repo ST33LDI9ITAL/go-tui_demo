@@ -391,8 +391,6 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 	frame.AddChild(el)
 	root.AddChild(frame)
 
-	os.Stdout.WriteString("\033[?2004h")
-
 	postRenderCursor = func() {
 		if textArea == nil || textAreaEl == nil {
 			return
