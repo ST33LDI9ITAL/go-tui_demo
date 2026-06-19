@@ -416,6 +416,9 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 
 		text := inputState.Get()
 		row, col := 0, 0
+		// Walk clusters, matching TextArea's cursorRowCol logic:
+		// increment row on newlines and when the next cluster would wrap.
+		currentCol := 0 // display column position
 		runePos := 0
 		rest := text
 		for len(rest) > 0 && runePos < cp {
@@ -423,26 +426,22 @@ func (c *testComponent) Render(a *tui.App) *tui.Element {
 			if size == 0 {
 				break
 			}
-
 			if cluster == "\n" {
 				row++
-				col = 0
+				currentCol = 0
 				runePos += rc
 				rest = rest[size:]
 				continue
 			}
-			if col >= actualWidth {
+			if currentCol > 0 && currentCol+cw > actualWidth {
 				row++
-				col = 0
+				currentCol = 0
 			}
-			col += cw
+			currentCol += cw
 			runePos += rc
 			rest = rest[size:]
 		}
-		if col >= actualWidth {
-			row++
-			col = 0
-		}
+		col = currentCol
 
 		ax, ay := elementAbsPos(textAreaEl)
 		if sof := reflect.ValueOf(textArea).Elem().FieldByName("tempScrollOffset"); sof.IsValid() {
